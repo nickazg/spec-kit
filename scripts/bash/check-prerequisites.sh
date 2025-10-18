@@ -82,6 +82,9 @@ source "$SCRIPT_DIR/common.sh"
 eval $(get_feature_paths)
 check_feature_branch "$CURRENT_BRANCH" "$HAS_GIT" || exit 1
 
+# Ensure supervisor is running (silently fails if supervisor script doesn't exist yet)
+ensure_supervisor_running 2>/dev/null || true
+
 # If paths-only mode, output paths and exit (support JSON + paths-only combined)
 if $PATHS_ONLY; then
     if $JSON_MODE; then

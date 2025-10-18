@@ -78,6 +78,14 @@ fi
 
 cd "$REPO_ROOT"
 
+# Try to source common.sh for supervisor support (silently fail if not available)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/common.sh" ]; then
+    source "$SCRIPT_DIR/common.sh"
+    # Ensure supervisor is running (silently fails if supervisor script doesn't exist yet)
+    ensure_supervisor_running 2>/dev/null || true
+fi
+
 SPECS_DIR="$REPO_ROOT/specs"
 mkdir -p "$SPECS_DIR"
 

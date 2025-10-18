@@ -154,3 +154,174 @@ EOF
 check_file() { [[ -f "$1" ]] && echo "  ✓ $2" || echo "  ✗ $2"; }
 check_dir() { [[ -d "$1" && -n $(ls -A "$1" 2>/dev/null) ]] && echo "  ✓ $2" || echo "  ✗ $2"; }
 
+# Cross-platform file timestamp detection
+get_file_mtime() {
+    local file="$1"
+
+    # Detect platform and use appropriate stat command
+    if [[ "$(uname)" == "Darwin" ]]; then
+        # macOS
+        stat -f %m "$file" 2>/dev/null
+    else
+        # Linux
+        stat -c %Y "$file" 2>/dev/null
+    fi
+}
+
+# Session lock management for concurrent command execution
+# Uses atomic mkdir operation for cross-platform compatibility
+acquire_session_lock() {
+    local repo_root=$(get_repo_root)
+    local lock_dir="$repo_root/.speckit/session.lock"
+    local max_wait="${1:-30}"  # Default 30 seconds max wait
+    local waited=0
+
+    while ! mkdir "$lock_dir" 2>/dev/null; do
+        if [[ $waited -ge $max_wait ]]; then
+            echo "ERROR: Could not acquire session lock after ${max_wait}s" >&2
+            echo "Another spec-kit command may be running. Please wait or remove $lock_dir if stale." >&2
+            return 1
+        fi
+        sleep 1
+        ((waited++))
+    done
+
+    # Store PID in lock directory for debugging
+    echo $$ > "$lock_dir/pid"
+    return 0
+}
+
+release_session_lock() {
+    local repo_root=$(get_repo_root)
+    local lock_dir="$repo_root/.speckit/session.lock"
+
+    if [[ -d "$lock_dir" ]]; then
+        rm -rf "$lock_dir"
+    fi
+}
+
+# Supervisor management functions
+# Ensures a background supervisor daemon is running to monitor project state
+
+# Check if supervisor is healthy (PID exists and heartbeat is recent)
+is_supervisor_healthy() {
+    local repo_root=$(get_repo_root)
+    local supervisor_dir="$repo_root/.speckit/supervisor"
+    local pid_file="$supervisor_dir/supervisor.pid"
+    local heartbeat_file="$supervisor_dir/heartbeat"
+    local max_heartbeat_age=60  # 60 seconds
+
+    # Check if PID file exists
+    if [[ ! -f "$pid_file" ]]; then
+        return 1
+    fi
+
+    local pid=$(cat "$pid_file" 2>/dev/null)
+    if [[ -z "$pid" ]]; then
+        return 1
+    fi
+
+    # Check if process is running
+    if ! kill -0 "$pid" 2>/dev/null; then
+        return 1
+    fi
+
+    # Check heartbeat freshness
+    if [[ ! -f "$heartbeat_file" ]]; then
+        return 1
+    fi
+
+    local heartbeat_time=$(cat "$heartbeat_file" 2>/dev/null)
+    local current_time=$(date +%s)
+    local age=$((current_time - heartbeat_time))
+
+    if [[ $age -gt $max_heartbeat_age ]]; then
+        return 1
+    fi
+
+    return 0
+}
+
+# Ensure supervisor daemon is running, start if not
+ensure_supervisor_running() {
+    local repo_root=$(get_repo_root)
+    local supervisor_dir="$repo_root/.speckit/supervisor"
+    local supervisor_script="$repo_root/scripts/bash/supervisor-daemon.sh"
+
+    # Create supervisor directory if it doesn't exist
+    mkdir -p "$supervisor_dir"/{inbox,outbox,observations}
+
+    # Check if supervisor is already healthy
+    if is_supervisor_healthy; then
+        return 0
+    fi
+
+    # Clean up stale PID file if exists
+    if [[ -f "$supervisor_dir/supervisor.pid" ]]; then
+        rm -f "$supervisor_dir/supervisor.pid"
+    fi
+
+    # Start supervisor in background
+    if [[ -f "$supervisor_script" ]]; then
+        nohup bash "$supervisor_script" > "$supervisor_dir/supervisor.log" 2>&1 &
+        local new_pid=$!
+        echo "$new_pid" > "$supervisor_dir/supervisor.pid"
+
+        # Wait briefly for supervisor to initialize
+        sleep 1
+
+        # Verify it started successfully
+        if is_supervisor_healthy; then
+            return 0
+        else
+            echo "Warning: Supervisor may have failed to start. Check $supervisor_dir/supervisor.log" >&2
+            return 1
+        fi
+    else
+        # Supervisor script doesn't exist yet - silently skip
+        return 0
+    fi
+}
+
+# Query supervisor via inbox/outbox messaging
+query_supervisor() {
+    local query_type="$1"
+    local query_payload="$2"
+    local repo_root=$(get_repo_root)
+    local supervisor_dir="$repo_root/.speckit/supervisor"
+    local inbox_dir="$supervisor_dir/inbox"
+    local outbox_dir="$supervisor_dir/outbox"
+
+    # Generate unique message ID
+    local msg_id="msg-$(date +%s)-$$"
+    local inbox_file="$inbox_dir/$msg_id.json"
+    local outbox_file="$outbox_dir/$msg_id.json"
+
+    # Write query to inbox
+    cat > "$inbox_file" <<EOF
+{
+  "id": "$msg_id",
+  "type": "$query_type",
+  "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "payload": $query_payload
+}
+EOF
+
+    # Wait for response (max 5 seconds)
+    local waited=0
+    while [[ $waited -lt 5 ]]; do
+        if [[ -f "$outbox_file" ]]; then
+            cat "$outbox_file"
+            rm -f "$inbox_file" "$outbox_file"
+            return 0
+        fi
+        sleep 0.5
+        ((waited++))
+    done
+
+    # Timeout - clean up and return error
+    rm -f "$inbox_file"
+    echo '{"error": "Supervisor query timeout"}' >&2
+    return 1
+}
+

@@ -232,6 +232,7 @@ Essential commands for the Spec-Driven Development workflow:
 | `/speckit.plan`          | Create technical implementation plans with your chosen tech stack     |
 | `/speckit.tasks`         | Generate actionable task lists for implementation                     |
 | `/speckit.implement`     | Execute all tasks to build the feature according to the plan         |
+| `/go`                    | **Intelligent workflow entrypoint** - analyzes your intent and routes to the right command (bug fixes, status, features, pivots) |
 
 #### Optional Commands
 
