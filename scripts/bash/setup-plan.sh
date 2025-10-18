@@ -33,6 +33,9 @@ eval $(get_feature_paths)
 # Check if we're on a proper feature branch (only for git repos)
 check_feature_branch "$CURRENT_BRANCH" "$HAS_GIT" || exit 1
 
+# Ensure supervisor is running (silently fails if supervisor script doesn't exist yet)
+ensure_supervisor_running 2>/dev/null || true
+
 # Ensure the feature directory exists
 mkdir -p "$FEATURE_DIR"
 
