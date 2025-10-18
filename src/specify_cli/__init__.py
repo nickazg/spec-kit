@@ -1133,6 +1133,9 @@ def init(
 
     steps_lines.append(f"{step_num}. Start using slash commands with your AI agent:")
 
+    steps_lines.append("   [cyan]/go[/] - Intelligent workflow entrypoint (analyzes intent and routes to the right command)")
+    steps_lines.append("")
+    steps_lines.append("   Or use the full workflow:")
     steps_lines.append("   2.1 [cyan]/speckit.constitution[/] - Establish project principles")
     steps_lines.append("   2.2 [cyan]/speckit.specify[/] - Create baseline specification")
     steps_lines.append("   2.3 [cyan]/speckit.plan[/] - Create implementation plan")
