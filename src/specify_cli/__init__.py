@@ -552,9 +552,10 @@ def merge_json_files(existing_path: Path, new_content: dict, verbose: bool = Fal
 
     return merged
 
-def download_template_from_github(ai_assistant: str, download_dir: Path, *, script_type: str = "sh", verbose: bool = True, show_progress: bool = True, client: httpx.Client = None, debug: bool = False, github_token: str = None) -> Tuple[Path, dict]:
-    repo_owner = "github"
-    repo_name = "spec-kit"
+def download_template_from_github(ai_assistant: str, download_dir: Path, *, script_type: str = "sh", verbose: bool = True, show_progress: bool = True, client: httpx.Client = None, debug: bool = False, github_token: str = None, repo_owner: str = None) -> Tuple[Path, dict]:
+    # Allow override via parameter or environment variable
+    repo_owner = repo_owner or os.getenv("SPECKIT_REPO_OWNER", "github")
+    repo_name = os.getenv("SPECKIT_REPO_NAME", "spec-kit")
     if client is None:
         client = httpx.Client(verify=ssl_context)
 
@@ -679,7 +680,8 @@ def download_and_extract_template(project_path: Path, ai_assistant: str, script_
             show_progress=(tracker is None),
             client=client,
             debug=debug,
-            github_token=github_token
+            github_token=github_token,
+            repo_owner=repo_owner
         )
         if tracker:
             tracker.complete("fetch", f"release {meta['release']} ({meta['size']:,} bytes)")
@@ -868,6 +870,7 @@ def init(
     skip_tls: bool = typer.Option(False, "--skip-tls", help="Skip SSL/TLS verification (not recommended)"),
     debug: bool = typer.Option(False, "--debug", help="Show verbose diagnostic output for network and extraction failures"),
     github_token: str = typer.Option(None, "--github-token", help="GitHub token to use for API requests (or set GH_TOKEN or GITHUB_TOKEN environment variable)"),
+    repo_owner: str = typer.Option(None, "--repo-owner", help="GitHub repository owner (defaults to 'github', or set SPECKIT_REPO_OWNER env var)"),
 ):
     """
     Initialize a new Specify project from the latest template.
