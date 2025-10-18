@@ -13,13 +13,16 @@ $ARGUMENTS
 
 ## Phase 1: Initialize Context & Acquire Lock
 
-**Acquire session lock** to prevent concurrent /go executions:
+**Acquire session lock** to prevent concurrent /speckit.go executions:
 
 ```bash
 # Source common.sh and acquire lock
 source scripts/bash/common.sh
 acquire_session_lock 10 || exit 1
 trap release_session_lock EXIT
+
+# Start supervisor if not running
+ensure_supervisor_running
 ```
 
 Run `{SCRIPT}` from repo root to get REPO_ROOT, BRANCH, and FEATURE_DIR paths.
@@ -203,18 +206,19 @@ I'm not sure I understand what you're asking for.
 Your input: "$USER_INPUT"
 
 Did you mean:
-1. Report a bug in existing code? (try: "/go found bug in [component]")
-2. Request a new feature? (try: "/go implement [feature description]")
-3. Check project status? (try: "/go status" or just "/go")
-4. Continue from where you left off? (try: "/go" with no arguments)
+1. Report a bug in existing code? (try: "/speckit.go found bug in [component]")
+2. Request a new feature? (try: "/speckit.go implement [feature description]")
+3. Check project status? (try: "/speckit.go status" or just "/speckit.go")
+4. Continue from where you left off? (try: "/speckit.go" with no arguments)
 
 Please clarify your intent or run the appropriate /speckit.* command directly.
 ```
 
 ## Notes
 
-- The /go command is designed to be flexible and forgiving
+- The /speckit.go command is designed to be flexible and forgiving
 - It prioritizes speed for quick bug fixes while maintaining rigor for larger changes
 - All routing decisions are explained before execution
 - User can always abort and run specific /speckit.* commands manually
 - Supervisor observations provide additional context but don't block execution
+- The Supervisor agent starts automatically when this command runs

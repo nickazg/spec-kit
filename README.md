@@ -24,6 +24,8 @@
 - [📽️ Video Overview](#️-video-overview)
 - [🤖 Supported AI Agents](#-supported-ai-agents)
 - [🔧 Specify CLI Reference](#-specify-cli-reference)
+- [🚀 Using the /speckit.go Command](#-using-the-speckitgo-command)
+- [🔍 Supervisor Agent](#-supervisor-agent)
 - [📚 Core Philosophy](#-core-philosophy)
 - [🌟 Development Phases](#-development-phases)
 - [🎯 Experimental Goals](#-experimental-goals)
@@ -232,7 +234,7 @@ Essential commands for the Spec-Driven Development workflow:
 | `/speckit.plan`          | Create technical implementation plans with your chosen tech stack     |
 | `/speckit.tasks`         | Generate actionable task lists for implementation                     |
 | `/speckit.implement`     | Execute all tasks to build the feature according to the plan         |
-| `/go`                    | **Intelligent workflow entrypoint** - analyzes your intent and routes to the right command (bug fixes, status, features, pivots) |
+| `/speckit.go`            | **Intelligent workflow entrypoint** - analyzes your intent and routes to the right command (bug fixes, status, features, pivots). See [Using the /speckit.go command](#-using-the-speckitgo-command) for details. |
 
 #### Optional Commands
 
@@ -249,6 +251,203 @@ Additional commands for enhanced quality and validation:
 | Variable         | Description                                                                                    |
 |------------------|------------------------------------------------------------------------------------------------|
 | `SPECIFY_FEATURE` | Override feature detection for non-Git repositories. Set to the feature directory name (e.g., `001-photo-albums`) to work on a specific feature when not using Git branches.<br/>**Must be set in the context of the agent you're working with prior to using `/speckit.plan` or follow-up commands. |
+
+## 🚀 Using the /speckit.go Command
+
+The `/speckit.go` command is an intelligent workflow entrypoint that analyzes your natural language input and automatically routes to the appropriate Spec Kit command. It's designed to make common workflows faster and more intuitive.
+
+### How it Works
+
+The `/speckit.go` command:
+1. **Analyzes your intent** - Uses keyword matching to understand what you're trying to do
+2. **Estimates scope** - Determines if the task is trivial, small, medium, or large
+3. **Routes to the right action** - Executes or recommends the appropriate workflow
+4. **Provides context** - Shows you Supervisor observations and project status
+
+### Common Use Cases
+
+#### Quick Bug Fixes
+```bash
+/speckit.go found bug in auth validation - tokens aren't validated
+```
+**Result**: Adds a high-priority task to `tasks.md` with P0 priority
+
+#### Status Queries
+```bash
+/speckit.go status
+# or just
+/speckit.go
+```
+**Result**: Shows current branch, commit, spec files, task progress, and supervisor observations
+
+#### Continue Workflow
+```bash
+/speckit.go continue
+# or just
+/speckit.go
+```
+**Result**: Automatically determines and executes the next logical step in your workflow:
+- No `spec.md` → Runs `/speckit.specify`
+- `spec.md` but no `plan.md` → Runs `/speckit.plan`
+- `plan.md` but no `tasks.md` → Runs `/speckit.tasks`
+- `tasks.md` with incomplete tasks → Runs `/speckit.implement`
+- All tasks complete → Suggests running tests or creating a PR
+
+#### Feature Requests
+```bash
+/speckit.go implement user authentication with OAuth
+```
+**Result**:
+- **Small scope**: Adds task to existing `tasks.md`
+- **Medium/Large scope**: Recommends running `/speckit.specify` to create a proper specification
+
+#### Pivot Scenarios
+```bash
+/speckit.go pivot to microservices architecture
+```
+**Result**:
+- Archives current `plan.md` with timestamp
+- Creates `migration.md` strategy document
+- Checks for constitution conflicts
+- Guides you through the pivot process
+
+### Intent Classification
+
+The `/speckit.go` command recognizes these intents:
+
+| Intent | Trigger Keywords | Routing Decision |
+|--------|-----------------|------------------|
+| **Bug Fix** | bug, fix, broken, error, crash, fail, issue, problem | Add high-priority task to `tasks.md` |
+| **Feature Request** | implement, add, create, build, new, feature, support | Add task (small) or recommend `/speckit.specify` (medium+) |
+| **Status Query** | status, what, where, show, list, progress, current | Display project status and observations |
+| **Continuation** | continue, proceed, next, resume, go (or empty input) | Determine and execute next workflow step |
+| **Pivot** | pivot, restructure, refactor, change, switch, migrate | Archive plan, create migration strategy |
+| **Refinement** | update, modify, change, edit, adjust, revise | Recommend manual edit or regeneration |
+
+### Scope Estimation
+
+The command estimates task scope based on keywords:
+
+- **Trivial**: typo, comment, log, print, message
+- **Small**: file, function, method, class, validation (1-2 files)
+- **Medium**: component, module, service, api, endpoint (3-5 files)
+- **Large**: system, architecture, database, auth, infrastructure (6+ files)
+- **Pivot**: major restructuring or architectural changes
+
+### Special Commands
+
+#### Check Supervisor Status
+```bash
+/speckit.go supervisor status
+```
+**Result**: Shows if the Supervisor agent is running, healthy, and displays state information
+
+### Safety Features
+
+- **Confirmation prompts** - Always displays classification and asks for confirmation before executing
+- **Low confidence handling** - If intent is unclear (confidence < 0.5), provides helpful suggestions
+- **Session locking** - Prevents concurrent `/speckit.go` executions
+- **Supervisor integration** - Shows warnings and observations before proceeding
+- **Auto-starts Supervisor** - The Supervisor agent starts automatically when this command runs
+
+## 🔍 Supervisor Agent
+
+The Supervisor Agent is a persistent background process that monitors your project and provides real-time observations about potential issues.
+
+### What It Does
+
+The Supervisor continuously monitors:
+- **Git state** - Uncommitted changes, staged files, branch switches
+- **File drift** - Files modified without corresponding tasks in `tasks.md`
+- **Constitution compliance** - Ensures development follows project principles (e.g., requires tests if mandated)
+
+### How It Works
+
+The Supervisor runs as a daemon process that:
+1. **Starts automatically** - Launched when you run any `/speckit.*` command
+2. **Monitors continuously** - Performs delta scans every 30 seconds, full scans every 5 minutes
+3. **Records observations** - Logs warnings and issues to `.speckit/supervisor/observations/latest.json`
+4. **Stays healthy** - Maintains heartbeat to track daemon health
+
+### Activation
+
+The Supervisor is activated automatically when you:
+- Run any `/speckit.*` command (`/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`, `/speckit.go`)
+- Execute any script that sources `scripts/bash/common.sh` and calls `ensure_supervisor_running`
+
+### Observation Types
+
+| Type | Severity | Description |
+|------|----------|-------------|
+| `git_changes` | Warning | Uncommitted changes detected in working directory |
+| `git_staged` | Info | Staged changes ready to commit |
+| `file_drift` | Warning | Files modified without corresponding task in `tasks.md` |
+| `constitution_violation` | Warning | Development violates project constitution (e.g., missing tests) |
+
+### Checking Supervisor Status
+
+#### Via /speckit.go command
+```bash
+/speckit.go supervisor status
+```
+
+#### Via bash function
+```bash
+source scripts/bash/common.sh
+if is_supervisor_healthy; then
+    echo "Supervisor is healthy"
+else
+    echo "Supervisor is not running"
+fi
+```
+
+#### Manual check
+```bash
+# Check if process is running
+cat .speckit/supervisor/supervisor.pid
+
+# View state
+cat .speckit/supervisor/state.json
+
+# View observations
+cat .speckit/supervisor/observations/latest.json
+```
+
+### Configuration
+
+Configuration is stored in `.speckit/supervisor/config.json`:
+
+```json
+{
+  "heartbeat_interval": 30,      // Heartbeat update frequency (seconds)
+  "delta_scan_interval": 30,     // Quick scan frequency (seconds)
+  "full_scan_interval": 300      // Comprehensive scan frequency (seconds)
+}
+```
+
+### State Files
+
+The Supervisor maintains several state files:
+
+- `.speckit/supervisor/state.json` - Current daemon state (PID, branch, last scan times)
+- `.speckit/supervisor/heartbeat` - Timestamp of last heartbeat (used for health checks)
+- `.speckit/supervisor/observations/latest.json` - Recent observations and warnings
+- `.speckit/supervisor/supervisor.pid` - Process ID of running supervisor
+
+### Stopping the Supervisor
+
+The Supervisor runs in the background and automatically cleans up when:
+- The terminal session ends
+- You manually kill the process: `kill $(cat .speckit/supervisor/supervisor.pid)`
+- It receives a SIGTERM or SIGINT signal
+
+### Integration with /speckit.go
+
+When you use the `/speckit.go` command, it:
+1. Checks supervisor health at the start
+2. Gathers supervisor observations about project state
+3. Displays relevant warnings after routing decisions
+4. Uses observations to inform routing (e.g., warn about uncommitted changes)
 
 ## 📚 Core Philosophy
 
